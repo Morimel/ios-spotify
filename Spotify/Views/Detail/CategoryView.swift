@@ -52,6 +52,21 @@ class CategoryView: UIViewController {
         collectionView.register(FeaturedPlaylistCollectionViewCell.self,
                                 forCellWithReuseIdentifier: FeaturedPlaylistCollectionViewCell.identifier)
         fetchData()
+        
+        
+        // Проверка доступных категорий
+            Task {
+                do {
+                    try await SpotifyRepository.shared.fetchAvailableCategories()
+                } catch {
+                    print("Error fetching available categories: \(error)")
+                }
+            }
+
+            // Тестирование плейлистов категории
+            Task {
+                await SpotifyRepository.shared.testCategoryPlaylists()
+            }
     }
 
     override func viewDidLayoutSubviews() {
@@ -65,10 +80,19 @@ class CategoryView: UIViewController {
                 self.playlists = try await SpotifyRepository.shared.getCategoryPlaylists(category: category)
                 self.collectionView.reloadData()
             } catch {
-
+                print("Error fetching playlists: \(error)")
+                showError(message: "Failed to load playlists. Please try again later.")
             }
         }
     }
+
+    private func showError(message: String) {
+        let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+    
+
 }
 
 extension CategoryView: UICollectionViewDelegate, UICollectionViewDataSource {

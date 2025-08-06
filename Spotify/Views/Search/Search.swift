@@ -16,6 +16,7 @@ class SearchView: UIViewController, UISearchResultsUpdating, UISearchBarDelegate
         searchController.searchBar.placeholder = "Songs, Artist, Albums"
         searchController.searchBar.searchBarStyle = .minimal
         searchController.definesPresentationContext = true
+        searchController.definesPresentationContext = true
         return searchController
     }()
 
@@ -38,7 +39,9 @@ class SearchView: UIViewController, UISearchResultsUpdating, UISearchBarDelegate
     }()
 
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-        guard let resultsController = searchController.searchResultsController as? SearchResultViewController, let query = searchBar.text, !query.trimmingCharacters(in: .whitespaces).isEmpty else {
+        guard let resultsController = searchController.searchResultsController as? SearchResultViewController,
+              let query = searchBar.text,
+              !query.trimmingCharacters(in: .whitespaces).isEmpty else {
             return
         }
         resultsController.delegate = self
@@ -46,12 +49,14 @@ class SearchView: UIViewController, UISearchResultsUpdating, UISearchBarDelegate
         Task {
             do {
                 let results = try await SpotifyRepository.shared.search(with: query)
+                print("Search results: \(results)") // Отладочный вывод
                 resultsController.update(with: results)
             } catch {
-
+                print("Error during search: \(error)") // Лог ошибки
             }
         }
     }
+
 
     private var categories = [Category]()
 
@@ -78,11 +83,13 @@ class SearchView: UIViewController, UISearchResultsUpdating, UISearchBarDelegate
         Task {
             do {
                 self.categories = try await SpotifyRepository.shared.getCategories()
+                print("Categories count: \(categories.count)") // Отладка
                 self.collectionView.reloadData()
             } catch {
-
+                print("Error loading categories: \(error)") // Лог ошибки
             }
         }
+
     }
 }
 
@@ -114,6 +121,7 @@ extension SearchView: UICollectionViewDelegate, UICollectionViewDataSource {
         categoryView.navigationItem.largeTitleDisplayMode = .never
         navigationController?.pushViewController(categoryView, animated: true)
     }
+
 
     func updateSearchResults(for searchController: UISearchController) {
 

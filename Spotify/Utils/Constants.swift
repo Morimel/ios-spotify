@@ -11,8 +11,8 @@ class Constants {
 
     static let baseAPIURL =  "https://api.spotify.com/v1"
 
-    static let clientID = "YOUR_CLIENT_ID"
-    static let clientSecret = "YOUR_CLIENT_SECRET"
+    static let clientID = "9e67aa2faca44897900404e9a501c6c6"
+    static let clientSecret = "ecf554fe113049f7ac9051ec55df689b"
     static let tokenAPIURL = "https://accounts.spotify.com/api/token"
 
     static let scopes = "user-read-private%20playlist-modify-public%20playlist-read-private%20playlist-modify-private%20user-follow-read%20user-library-read%20user-library-modify%20user-read-email%20user-top-read%20user-read-recently-played"

@@ -44,42 +44,25 @@ class SearchResultViewController: UIViewController {
     }
 
     public func update(with results: [SearchResults]) {
-        let artists = results.filter({
-            switch $0 {
-            case .artist: return true
-            default: return false
-            }
-        })
-        let albums = results.filter({
-            switch $0 {
-            case .album: return true
-            default: return false
-            }
-        })
-        let playlists = results.filter({
-            switch $0 {
-            case .playlist: return true
-            default: return false
-            }
-        })
-        let tracks = results.filter({
-            switch $0 {
-            case .track: return true
-            default: return false
-            }
-        })
+        let artists = results.filter { if case .artist = $0 { return true } else { return false } }
+        let albums = results.filter { if case .album = $0 { return true } else { return false } }
+        let playlists = results.filter { if case .playlist = $0 { return true } else { return false } }
+        let tracks = results.filter { if case .track = $0 { return true } else { return false } }
+        print(SearchResults.self)
+        
         self.sections = [
             SearchSection(title: "Songs", results: tracks),
             SearchSection(title: "Artists", results: artists),
             SearchSection(title: "Playlists", results: playlists),
             SearchSection(title: "Albums", results: albums)
-
         ]
+        
+        print("Updated sections: \(self.sections)") // Отладка
         tableView.reloadData()
         tableView.isHidden = results.isEmpty
-
     }
 
+    
 }
 
 extension SearchResultViewController: UITableViewDelegate, UITableViewDataSource {

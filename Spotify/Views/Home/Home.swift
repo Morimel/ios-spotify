@@ -201,66 +201,60 @@ class Home: UICollectionViewController, UICollectionViewDelegateFlowLayout {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        Task {
-            await loadData()
-        }
-
         collectionView?.register(HomeItemCell.self, forCellWithReuseIdentifier: HomeItemCell.id)
+        collectionView?.register(TopItemCell.self, forCellWithReuseIdentifier: TopItemCell.id)
+
         collectionView?.register(TitleHeaderView.self,
                                  forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader,
                                  withReuseIdentifier: TitleHeaderView.identifier)
 
-        collectionView?.register(TopItemCell.self, forCellWithReuseIdentifier: TopItemCell.id)
-        collectionView?.showsVerticalScrollIndicator = false
-        collectionView?.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 80, right: 0 )
-    }
-
-    override func collectionView(_ collectionView: UICollectionView,
-                                 cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-
-        guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: HomeItemCell.id,
-                                                            for: indexPath) as? HomeItemCell else {
-            return UICollectionViewCell()
+        Task {
+            await loadData()
         }
 
-        let type = sections[indexPath.section]
+        collectionView?.showsVerticalScrollIndicator = false
+        collectionView?.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 80, right: 0)
+    }
 
-        switch type {
+
+    override func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        let sectionType = sections[indexPath.section]
+
+        switch sectionType {
         case .topItems(let items):
             guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: TopItemCell.id,
                                                                 for: indexPath) as? TopItemCell else {
-                return UICollectionViewCell()
+                fatalError("Failed to dequeue TopItemCell")
             }
             cell.track = items[indexPath.row]
             cell.setup()
             return cell
-        case.newReleases(let items):
+
+        case .newReleases(let items),
+             .topSongs(let items),
+             .userPlaylist(let items),
+             .featuredPlaylists(let items),
+             .recommended(let items):
+            guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: HomeItemCell.id,
+                                                                for: indexPath) as? HomeItemCell else {
+                fatalError("Failed to dequeue HomeItemCell")
+            }
             cell.track = items[indexPath.row]
             cell.setup()
             return cell
-        case .topSongs(let items):
-            cell.track = items[indexPath.row]
-            cell.setup()
-            return cell
-        case .userPlaylist(let items):
-            cell.track = items[indexPath.row]
-            cell.setup()
-            return cell
-        case .featuredPlaylists(let items):
-            cell.track = items[indexPath.row]
-            cell.setup()
-            return cell
-        case .recommended(let items):
-            cell.track = items[indexPath.row]
-            cell.setup()
-            return cell
+
         case .topArtists(let items):
+            guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: HomeItemCell.id,
+                                                                for: indexPath) as? HomeItemCell else {
+                fatalError("Failed to dequeue HomeItemCell")
+            }
             cell.track = items[indexPath.row]
-            cell.setup(roundImage: true)
+            cell.setup(roundImage: true) // Если нужно показать круглое изображение
             return cell
         }
     }
 
+    
     override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         collectionView.deselectItem(at: indexPath, animated: true)
         let section = sections[indexPath.section]

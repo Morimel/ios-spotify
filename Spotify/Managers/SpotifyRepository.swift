@@ -9,6 +9,10 @@ import Foundation
 
 class SpotifyRepository {
    static let shared = SpotifyRepository()
+   
+   var accessToken: String {
+           return UserDefaults.standard.string(forKey: "access_token") ?? ""
+       }
 
    public func getUserTracks() async throws -> [UserTrack] {
       return try await withCheckedThrowingContinuation { continuation in
@@ -153,6 +157,38 @@ class SpotifyRepository {
          }
       }
    }
+   
+   func fetchAvailableCategories() async throws {
+           let url = URL(string: "https://api.spotify.com/v1/browse/categories")!
+           var request = URLRequest(url: url)
+           request.httpMethod = "GET"
+           request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+           let (data, _) = try await URLSession.shared.data(for: request)
+           if let jsonString = String(data: data, encoding: .utf8) {
+               print("Available categories: \(jsonString)")
+           }
+       }
+
+       func testCategoryPlaylists() async {
+           let testCategoryID = "pop" // Замените на существующий ID
+           let url = URL(string: "https://api.spotify.com/v1/browse/categories/\(testCategoryID)/playlists?limit=10")!
+           var request = URLRequest(url: url)
+           request.httpMethod = "GET"
+          request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+           do {
+               let (data, response) = try await URLSession.shared.data(for: request)
+               if let httpResponse = response as? HTTPURLResponse {
+                   print("HTTP Status: \(httpResponse.statusCode)")
+               }
+               if let jsonString = String(data: data, encoding: .utf8) {
+                   print("Response: \(jsonString)")
+               }
+           } catch {
+               print("Test request failed: \(error)")
+           }
+       }
 
    public func getAlbumDetails(album: Album) async throws -> AlbumDetails {
       return try await withCheckedThrowingContinuation { continuation in
