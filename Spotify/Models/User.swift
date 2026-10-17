@@ -32,9 +32,9 @@ struct UserProfile: Codable {
 }
 
 struct User: Codable {
-    let displayName: String
+    let displayName: String?
     let id: String
-    let externalUrls: [String: String]
+    let externalUrls: [String: String]?
     let type: String
 
     enum CodingKeys: String, CodingKey {

@@ -15,11 +15,15 @@ final class AuthManager {
     private init() {}
 
     public var signInURL: URL? {
-
-        let base = "https://accounts.spotify.com/authorize"
-
-        let string = "\(base)?response_type=code&client_id=\(Constants.clientID)&scope=\(Constants.scopes)&redirect_uri=\(Constants.redirectURI)&show_dialog=TRUE"
-        return URL(string: string)
+        var components = URLComponents(string: "https://accounts.spotify.com/authorize")
+        components?.queryItems = [
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(name: "client_id", value: Constants.clientID),
+            URLQueryItem(name: "scope", value: Constants.scopes.replacingOccurrences(of: "%20", with: " ")),
+            URLQueryItem(name: "redirect_uri", value: Constants.redirectURI),
+            URLQueryItem(name: "show_dialog", value: "true")
+        ]
+        return components?.url
     }
     var isSignedIn: Bool {
         return accessToken != nil
@@ -39,7 +43,7 @@ final class AuthManager {
 
     private var shouldRefreshToken: Bool {
         guard let expirationDate = tokenExpirationDate else {
-            return false
+            return refreshToken != nil
         }
         let currentDate = Date()
         let fiveMinutes: TimeInterval = 300
@@ -73,21 +77,20 @@ final class AuthManager {
             request.setValue("Basic \(base64String)", forHTTPHeaderField: "Authorization")
             request.httpBody = components.query?.data(using: .utf8 )
 
-           let task = URLSession.shared.dataTask(with: request) { data, _, error in
-                guard let data = data, error == nil else {
-                     return
+           let task = URLSession.shared.dataTask(with: request) { data, response, error in
+                guard let data = data, error == nil,
+                      let response = response as? HTTPURLResponse,
+                      (200..<300).contains(response.statusCode) else {
+                    DispatchQueue.main.async { completion(false) }
+                    return
                 }
 
                 do {
-                    let json = try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)
-                    print("Success: \(json)")
-
                     let result = try JSONDecoder().decode(AuthResponse.self, from: data)
                     self.cacheToken(result: result)
-                    completion(true)
+                    DispatchQueue.main.async { completion(true) }
                 } catch {
-                    print("Error: \(error.localizedDescription)")
-                    completion(false)
+                    DispatchQueue.main.async { completion(false) }
 
                 }
             }
@@ -95,38 +98,32 @@ final class AuthManager {
 
     }
 
-    private var onRefreshBlocks = [((String) -> Void)]()
+    private var onRefreshBlocks = [((Bool) -> Void)]()
     ///  Supply valid token to be u   sed with Api calls
-    public func withValidToken(completion: @escaping (String) -> Void) {
-
-        guard !refreshingToken else {
-            // Append the completion
-            onRefreshBlocks.append(completion)
-            return
-        }
-
-        if shouldRefreshToken {
-            // refresh token
+    public func withValidToken(completion: @escaping (String?) -> Void) {
+        if shouldRefreshToken || refreshingToken {
             refreshIfNeeded { [weak self] success in
-                if let token = self?.accessToken, success {
-                    completion(token)
-                }
+                completion(success ? self?.accessToken : nil)
             }
-        } else if let token = accessToken {
-            completion(token)
+        } else {
+            completion(accessToken)
         }
     }
 
-    public func refreshIfNeeded(completion: ((Bool) -> Void)?) {
+    public func refreshIfNeeded(force: Bool = false, completion: ((Bool) -> Void)?) {
 
         guard !refreshingToken else {
+            if let completion = completion {
+                onRefreshBlocks.append(completion)
+            }
             return
         }
-        guard shouldRefreshToken else {
+        guard shouldRefreshToken || force else {
             completion?(true)
             return
         }
         guard let refreshToken = self.refreshToken else {
+            completion?(false)
             return
         }
 
@@ -147,36 +144,33 @@ final class AuthManager {
         let data = basicToken.data(using: .utf8)
         guard let base64String = data?.base64EncodedString() else {
             print("Error: failure to get base64 on refresh Token ")
+            refreshingToken = false
             completion?(false)
             return
         }
         request.setValue("Basic \(base64String)", forHTTPHeaderField: "Authorization")
         request.httpBody = components.query?.data(using: .utf8 )
 
-       let task = URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
-
-           self?.refreshingToken = false
-
-           guard let data = data, error == nil else {
-                 return
-            }
-
-            do {
-                let json = try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)
-                print("Success: \(json)")
-
-                let result = try JSONDecoder().decode(AuthResponse.self, from: data)
-                self?.onRefreshBlocks.forEach { $0(result.accessToken) }
-
-                self?.onRefreshBlocks.removeAll()
-                self?.cacheToken(result: result)
-                completion?(true)
-            } catch {
-                print("Error: \(error.localizedDescription)")
-                completion?(false)
-
-            }
-        }
+       let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+           var tokenResponse: AuthResponse?
+           if let data = data,
+              error == nil,
+              let response = response as? HTTPURLResponse,
+              (200..<300).contains(response.statusCode) {
+               tokenResponse = try? JSONDecoder().decode(AuthResponse.self, from: data)
+           }
+           DispatchQueue.main.async {
+               guard let self = self else { return }
+               if let tokenResponse = tokenResponse {
+                   self.cacheToken(result: tokenResponse)
+               }
+               self.refreshingToken = false
+               let succeeded = tokenResponse != nil
+               completion?(succeeded)
+               self.onRefreshBlocks.forEach { $0(succeeded) }
+               self.onRefreshBlocks.removeAll()
+           }
+       }
         task.resume()
 
     }

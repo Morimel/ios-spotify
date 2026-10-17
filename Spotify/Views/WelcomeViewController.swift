@@ -92,8 +92,6 @@ class WelcomeViewController: UIViewController {
             return
         }
 
-        let mainAppTabBarVc = Spotify()
-        mainAppTabBarVc.modalPresentationStyle = .fullScreen
-        present(mainAppTabBarVc, animated: true)
+        navigationController?.view.window?.rootViewController = Spotify()
     }
 }

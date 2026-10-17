@@ -70,7 +70,7 @@ class PlayListView: UIViewController {
         super.viewDidLoad()
         title = playlist.name
 
-        if playlist.name == "Saved songs" {
+        if playlist.id == "" && playlist.name == "Saved songs" {
             fetchSavedSongs()
             isSavedSongsPlayList = true
         } else {
@@ -97,6 +97,13 @@ class PlayListView: UIViewController {
                 self.viewModels = tracks.compactMap({
                     TrackCellViewModel(id: $0.id, name: $0.name, artistName: $0.artists.first?.name ?? "-", artworkURL: URL(string: $0.album?.images.first?.url ?? ""))
                 })
+                if self.tracks.isEmpty {
+                    let label = UILabel()
+                    label.text = "No saved songs yet."
+                    label.textColor = .secondaryLabel
+                    label.textAlignment = .center
+                    self.collectionView.backgroundView = label
+                }
                 self.collectionView.reloadData()
 
             } catch {
@@ -109,10 +116,19 @@ class PlayListView: UIViewController {
         Task {
             do {
                 let model = try await SpotifyRepository.shared.getPlaylistDetails(for: playlist)
-                self.tracks = model.tracks.items.compactMap({ $0.track })
-                self.viewModels = model.tracks.items.compactMap({
-                    TrackCellViewModel(id: $0.track.id, name: $0.track.name, artistName: $0.track.artists.first?.name ?? "-", artworkURL: URL(string: $0.track.album?.images.first?.url ?? ""))
+                self.tracks = model.audioTracks
+                self.viewModels = self.tracks.map({
+                    TrackCellViewModel(id: $0.id, name: $0.name, artistName: $0.artists.first?.name ?? "-", artworkURL: URL(string: $0.album?.images.first?.url ?? ""))
                 })
+                if self.tracks.isEmpty {
+                    let label = UILabel()
+                    label.text = "No tracks available for this playlist."
+                    label.textColor = .secondaryLabel
+                    label.textAlignment = .center
+                    self.collectionView.backgroundView = label
+                } else {
+                    self.collectionView.backgroundView = nil
+                }
                 self.collectionView.reloadData()
             } catch {
 

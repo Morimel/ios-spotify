@@ -76,6 +76,7 @@ class PlaylistsTableViewCell: UITableViewCell {
         super.prepareForReuse()
         imgView.image = nil
         nameLabel.text = ""
+        likeImage.isHidden = true
     }
 
     func configure(with viewModel: PlaylistsTableViewCellViewModel) {

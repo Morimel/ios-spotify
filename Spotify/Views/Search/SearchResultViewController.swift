@@ -19,6 +19,13 @@ class SearchResultViewController: UIViewController {
 
     private var sections: [SearchSection] = []
     weak var delegate: SearchResultViewControllerDelegate?
+    private let messageLabel: UILabel = {
+        let label = UILabel()
+        label.textColor = .secondaryLabel
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        return label
+    }()
 
     private let tableView: UITableView = {
         let tableView = UITableView(frame: .zero, style: .grouped)
@@ -34,12 +41,14 @@ class SearchResultViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .clear
         view.addSubview(tableView)
+        view.addSubview(messageLabel)
         tableView.delegate = self
         tableView.dataSource = self
     }
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         tableView.frame = view.bounds
+        messageLabel.frame = view.bounds.insetBy(dx: 24, dy: 0)
 
     }
 
@@ -48,8 +57,6 @@ class SearchResultViewController: UIViewController {
         let albums = results.filter { if case .album = $0 { return true } else { return false } }
         let playlists = results.filter { if case .playlist = $0 { return true } else { return false } }
         let tracks = results.filter { if case .track = $0 { return true } else { return false } }
-        print(SearchResults.self)
-        
         self.sections = [
             SearchSection(title: "Songs", results: tracks),
             SearchSection(title: "Artists", results: artists),
@@ -57,9 +64,23 @@ class SearchResultViewController: UIViewController {
             SearchSection(title: "Albums", results: albums)
         ]
         
-        print("Updated sections: \(self.sections)") // Отладка
         tableView.reloadData()
         tableView.isHidden = results.isEmpty
+        messageLabel.text = results.isEmpty ? "No results found" : nil
+    }
+
+    func clear() {
+        sections = []
+        tableView.reloadData()
+        tableView.isHidden = true
+        messageLabel.text = nil
+    }
+
+    func showError(_ error: Error) {
+        sections = []
+        tableView.reloadData()
+        tableView.isHidden = true
+        messageLabel.text = error.localizedDescription
     }
 
     
@@ -101,7 +122,7 @@ extension SearchResultViewController: UITableViewDelegate, UITableViewDataSource
                                                         subTitle: model.artists.first?.name ?? ""))
         case .playlist(let model):
             cell.configure(
-                with: SearchResultsCellViewModel(title: model.name ?? "",
+                with: SearchResultsCellViewModel(title: model.name,
                                                         imageUrl: URL(string: model.images?.first?.url ?? ""),
                                                         subTitle: model.owner?.displayName))
         }

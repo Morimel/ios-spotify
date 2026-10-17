@@ -23,7 +23,7 @@ struct SearchArtists: Codable {
 }
 
 struct SearchPlaylists: Codable {
-    let items: [Playlist]
+    let items: [Playlist?]
 }
 
 struct SearchTracks: Codable {

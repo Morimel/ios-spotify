@@ -68,15 +68,11 @@ class SpotifyRepository {
    }
 
    public func getArtistTopTracks(artist: Artist) async throws -> [AudioTrack] {
-      return try await withCheckedThrowingContinuation { continuation in
-         NetworkManager.shared.request(fromURL: URL(string: Constants.artistUrl + "/\(artist.id)/top-tracks?country=us" )!) { (result: Result<ArtistTopTracksResponse, Error>) in
-            switch result {
-            case .success(let response):
-               continuation.resume(returning: response.tracks)
-            case .failure(let failure):
-               continuation.resume(throwing: failure)
-            }
-         }
+      let results = try await search(with: "artist:\"\(artist.name)\"")
+      return results.compactMap { result in
+         guard case .track(let track) = result,
+               track.artists.contains(where: { $0.id == artist.id }) else { return nil }
+         return track
       }
    }
 
@@ -207,8 +203,11 @@ class SpotifyRepository {
    }
 
    public func getPlaylistDetails(for playlist: Playlist) async throws -> PlaylistDetails {
+      guard let id = playlist.id, !id.isEmpty else {
+         throw URLError(.badURL)
+      }
       return try await withCheckedThrowingContinuation { continuation in
-         NetworkManager.shared.request(fromURL: URL(string: Constants.playlistDetailsUrl + playlist.id!)!) {
+         NetworkManager.shared.request(fromURL: URL(string: Constants.playlistDetailsUrl + id)!) {
             (result: Result<PlaylistDetails, Error>) in
             continuation.resume(with: result)
          }
@@ -216,7 +215,13 @@ class SpotifyRepository {
    }
 
    public func search(with query: String) async throws -> [SearchResults] {
-      let url = URL(string: Constants.searchUrl + "&q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")")!
+      var components = URLComponents(string: Constants.baseAPIURL + "/search")!
+      components.queryItems = [
+         URLQueryItem(name: "type", value: "album,artist,playlist,track"),
+         URLQueryItem(name: "limit", value: "10"),
+         URLQueryItem(name: "q", value: query)
+      ]
+      let url = components.url!
 
       return try await withCheckedThrowingContinuation { continuation in
          NetworkManager.shared.request(fromURL: url) { (result: Result<SearchResulsResponse, Error>) in
@@ -226,7 +231,7 @@ class SpotifyRepository {
                searchResult.append(contentsOf: results.tracks.items.compactMap({ .track(model: $0)}))
                searchResult.append(contentsOf: results.albums.items.compactMap({ .album(model: $0)}))
                searchResult.append(contentsOf: results.artists.items.compactMap({ .artist(model: $0)}))
-               searchResult.append(contentsOf: results.playlists.items.compactMap({ .playlist(model: $0)}))
+               searchResult.append(contentsOf: results.playlists.items.compactMap { $0.map { .playlist(model: $0) } })
 
                continuation.resume(returning: searchResult)
             case .failure(let error):
@@ -237,8 +242,7 @@ class SpotifyRepository {
    }
 
    public func saveTrack(trackId: String) async throws -> Bool {
-
-      let url = URL(string: Constants.userTracksUrl + "?ids=\(trackId)")!
+      let url = libraryURL(trackId: trackId)
 
       return try await withCheckedThrowingContinuation { continuation in
          NetworkManager.shared.request(fromURL: url, httpMethod: .put) { (result: Result<GeneralResponse, Error>) in
@@ -253,7 +257,7 @@ class SpotifyRepository {
    }
 
    public func deleteTrack(trackId: String) async throws -> Bool {
-      let url = URL(string: Constants.userTracksUrl + "?ids=\(trackId)")!
+      let url = libraryURL(trackId: trackId)
 
       return try await withCheckedThrowingContinuation { continuation in
          NetworkManager.shared.request(fromURL: url, httpMethod: .delete) { (result: Result<GeneralResponse, Error>) in
@@ -268,20 +272,24 @@ class SpotifyRepository {
    }
 
    public func isSavedTrack(trackId: String) async throws -> Bool {
-      let url = URL(string: Constants.userTracksContainsUrl + "?ids=\(trackId)")!
+      let url = libraryURL(trackId: trackId, contains: true)
 
       return try await withCheckedThrowingContinuation { continuation in
          NetworkManager.shared.request(fromURL: url) { (result: Result<[Bool], Error>) in
             switch result {
             case .success(let success):
-               if let status = success.first {
-                  continuation.resume(returning: status)
-               }
+               continuation.resume(returning: success.first ?? false)
             case .failure(let failure):
                continuation.resume(throwing: failure)
             }
          }
       }
+   }
+
+   private func libraryURL(trackId: String, contains: Bool = false) -> URL {
+      var components = URLComponents(string: Constants.baseAPIURL + "/me/library" + (contains ? "/contains" : ""))!
+      components.queryItems = [URLQueryItem(name: "uris", value: "spotify:track:\(trackId)")]
+      return components.url!
    }
 
 }

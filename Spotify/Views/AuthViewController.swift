@@ -36,16 +36,26 @@ class AuthViewController: UIViewController, WKNavigationDelegate {
         webView.frame = view.bounds
     }
 
-    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-        guard let url = webView.url else { return }
-        guard let code =  URLComponents(string: url.absoluteString)?.queryItems?.first(where: {$0.name == "code"})?.value else { return }
-
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let url = navigationAction.request.url,
+              url.absoluteString.hasPrefix(Constants.redirectURI) else {
+            decisionHandler(.allow)
+            return
+        }
+        decisionHandler(.cancel)
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+        guard let code = query?.first(where: { $0.name == "code" })?.value else {
+            navigationController?.popToRootViewController(animated: false)
+            completionHandler?(false)
+            return
+        }
         webView.isHidden = true
-        AuthManager.shared.exchangeCodeForToken(code: code) {[weak self] success in
-            DispatchQueue.main.async {
-                self?.navigationController?.popToRootViewController(animated: true)
-                self?.completionHandler?(success)
+        AuthManager.shared.exchangeCodeForToken(code: code) { [weak self] success in
+            if !success {
+                self?.navigationController?.popToRootViewController(animated: false)
             }
+            self?.completionHandler?(success)
         }
     }
 }

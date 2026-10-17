@@ -7,6 +7,7 @@
 
 import Foundation
 import AVFoundation
+import UIKit
 
 class AudioManager {
     
@@ -43,7 +44,13 @@ class AudioManager {
     }
     
     func playTrack(track: AudioTrack) {
-        guard let url = URL(string: track.previewUrl ?? "") else {
+        guard let preview = track.previewUrl,
+              let url = URL(string: preview) else {
+            if let spotifyURL = track.externalUrls["spotify"].flatMap(URL.init(string:)) {
+                DispatchQueue.main.async {
+                    UIApplication.shared.open(spotifyURL)
+                }
+            }
             return
         }
         
@@ -80,11 +87,11 @@ class AudioManager {
                 return
             }
 
-            if shuffleActive {
+            if shuffleActive && playlist.count > 1 {
                 var index = currentTrackIndex
 
                 while index == currentTrackIndex {
-                    index = Int.random(in: 1..<playlist.count)
+                    index = Int.random(in: 0..<playlist.count)
                 }
 
                 playTrack(track: playlist[index])

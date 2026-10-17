@@ -11,6 +11,7 @@ class LibraryView: UIViewController {
 
     public var selectionHandler: ((Playlist) -> Void)?
     private var playlists = [Playlist]()
+    private let savedSongs = Playlist(description: "", externalUrls: nil, id: "", images: nil, name: "Saved songs", owner: nil)
 
     private lazy var tableView: UITableView = {
         let tableView = UITableView(frame: .zero, style: .plain)
@@ -33,21 +34,33 @@ class LibraryView: UIViewController {
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
 
-        playlists.append(Playlist(description: "",
-                                  externalUrls: nil,
-                                  id: "",
-                                  images: nil,
-                                  name: "Saved songs",
-                                  owner: nil))
+        playlists = [savedSongs]
+        tableView.refreshControl = UIRefreshControl()
+        tableView.refreshControl?.addTarget(self, action: #selector(refreshPlaylists), for: .valueChanged)
+    }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        refreshPlaylists()
+    }
+
+    @objc private func refreshPlaylists() {
         Task {
             do {
                 let playlists = try await SpotifyRepository.shared.getUserPlaylists()
-                self.playlists.append(contentsOf: playlists.items)
+                self.playlists = [savedSongs] + playlists.items
                 self.tableView.reloadData()
+                self.tableView.tableFooterView = nil
             } catch {
-
+                let footer = UILabel()
+                footer.text = error.localizedDescription
+                footer.textColor = .secondaryLabel
+                footer.textAlignment = .center
+                footer.numberOfLines = 0
+                footer.frame = CGRect(x: 0, y: 0, width: self.tableView.bounds.width, height: 120)
+                self.tableView.tableFooterView = footer
             }
+            self.tableView.refreshControl?.endRefreshing()
         }
     }
 }

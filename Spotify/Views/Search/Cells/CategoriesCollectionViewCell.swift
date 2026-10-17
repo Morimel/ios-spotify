@@ -44,6 +44,7 @@ class CategoriesCollectionViewCell: UICollectionViewCell {
         super.init(frame: frame)
         contentView.layer.cornerRadius = 8
         contentView.layer.masksToBounds = true
+        label.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(imageView)
         contentView.addSubview(label)
 
@@ -51,7 +52,10 @@ class CategoriesCollectionViewCell: UICollectionViewCell {
             imageView.topAnchor.constraint(equalTo: contentView.topAnchor),
             imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            label.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 14),
+            label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
+            label.centerYAnchor.constraint(equalTo: contentView.centerYAnchor)
         ])
     }
 
@@ -67,6 +71,8 @@ class CategoriesCollectionViewCell: UICollectionViewCell {
 
     func configure(with viewModel: CategoriesCellViewModel) {
         label.text = viewModel.title
+        let colorIndex = viewModel.title.utf8.reduce(0) { ($0 + Int($1)) % colors.count }
+        contentView.backgroundColor = colors[colorIndex]
 
         if let url = viewModel.imageUrl {
             ImageManager().getImageFromURL(url: url) { result in

@@ -15,9 +15,24 @@ class NetworkManager {
     static let shared = NetworkManager()
 
     /// These are the errors this class might return
-    enum ManagerErrors: Error {
+    enum ManagerErrors: LocalizedError {
         case invalidResponse
         case invalidStatusCode(Int)
+        case missingAccessToken
+        case accessDenied(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidResponse:
+                return "Spotify returned an invalid response. Please try again."
+            case .invalidStatusCode(let status):
+                return "Spotify request failed (HTTP \(status)). Please try again."
+            case .missingAccessToken:
+                return "Please sign in to Spotify."
+            case .accessDenied(let message):
+                return message
+            }
+        }
     }
 
     /// The request method you like to use
@@ -35,9 +50,11 @@ class NetworkManager {
     ///   - url: the URL
     ///   - httpMethod: The HTTP Method to use, either get or post in this case
     ///   - completion: The completion closure, returning a Result of either the generic type or an error
-    func request<T: Decodable>(fromURL url: URL, httpMethod: HttpMethod = .get, completion: @escaping (Result<T, Error>) -> Void) {
+    func request<T: Decodable>(fromURL url: URL, httpMethod: HttpMethod = .get,
+                               retryOnUnauthorized: Bool = true,
+                               completion: @escaping (Result<T, Error>) -> Void) {
 
-        AuthManager.shared.withValidToken { token  in
+        AuthManager.shared.withValidToken { token in
 
             // Because URLSession returns on the queue it creates for the request, we need to make sure we return on one and the same queue.
             // You can do this by either create a queue in your class (NetworkManager) which you return on, or return on the main queue.
@@ -45,6 +62,11 @@ class NetworkManager {
                 DispatchQueue.main.async {
                     completion(result)
                 }
+            }
+
+            guard let token = token else {
+                completionOnMain(.failure(ManagerErrors.missingAccessToken))
+                return
             }
 
             // Create the request. On the request you can define if it is a GET or POST request, add body and more.
@@ -66,12 +88,41 @@ class NetworkManager {
                 // Lets check the status code, we are only interested in results between 200 and 300 in statuscode. If the statuscode is anything
                 // else we want to return the error with the statuscode that was returned. In this case, we do not care about the data.
                 guard let urlResponse = response as? HTTPURLResponse else { return completionOnMain(.failure(ManagerErrors.invalidResponse)) }
+                if urlResponse.statusCode == 401 && retryOnUnauthorized {
+                    DispatchQueue.main.async {
+                        AuthManager.shared.refreshIfNeeded(force: true) { success in
+                            if success {
+                                self.request(fromURL: url, httpMethod: httpMethod,
+                                             retryOnUnauthorized: false, completion: completion)
+                            } else {
+                                completionOnMain(.failure(ManagerErrors.invalidStatusCode(401)))
+                            }
+                        }
+                    }
+                    return
+                }
                 if !(200..<300).contains(urlResponse.statusCode) {
+                    if urlResponse.statusCode == 403 {
+                        let message = data.flatMap { String(data: $0, encoding: .utf8) }?
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        let explanation: String
+                        if message?.contains("Active premium subscription required") == true {
+                            explanation = "Spotify requires an active Premium subscription for the account that owns this app. After the subscription changes, access may take a few hours to return."
+                        } else if let message = message, !message.isEmpty {
+                            explanation = String(message.prefix(300))
+                        } else {
+                            explanation = "Spotify denied access to this app. Check the app owner's account and authorized users."
+                        }
+                        return completionOnMain(.failure(ManagerErrors.accessDenied(explanation)))
+                    }
                     return completionOnMain(.failure(ManagerErrors.invalidStatusCode(urlResponse.statusCode)))
                 }
 
                 // Now that all our prerequisites are fullfilled, we can take our data and try to translate it to our generic type of T.
-                guard let data = data else { return }
+                guard let data = data else {
+                    completionOnMain(.failure(ManagerErrors.invalidResponse))
+                    return
+                }
                 do {
 
                     if data.isEmpty {
@@ -80,9 +131,6 @@ class NetworkManager {
                         return
                     }
 
-                    if let JSONString = String(data: data, encoding: .ascii) {
-                      print(JSONString)
-                    }
                     let decodedData = try JSONDecoder().decode(T.self, from: data)
                     completionOnMain(.success(decodedData))
                 } catch {
@@ -126,10 +174,16 @@ class NetworkManager {
             }
 
             // Now that all our prerequisites are fullfilled, we can take our data and try to translate it to our generic type of T.
-            guard let data = data else { return }
+            guard let data = data else {
+                completionOnMain(.failure(ManagerErrors.invalidResponse))
+                return
+            }
 
             if let imageData = data as Data? {
-                let image = UIImage(data: imageData)!
+                guard let image = UIImage(data: imageData) else {
+                    completionOnMain(.failure(ManagerErrors.invalidResponse))
+                    return
+                }
                 completionOnMain(.success(image))
             }
 

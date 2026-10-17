@@ -15,8 +15,6 @@ class SearchView: UIViewController, UISearchResultsUpdating, UISearchBarDelegate
         let searchController = UISearchController(searchResultsController: results)
         searchController.searchBar.placeholder = "Songs, Artist, Albums"
         searchController.searchBar.searchBarStyle = .minimal
-        searchController.definesPresentationContext = true
-        searchController.definesPresentationContext = true
         return searchController
     }()
 
@@ -38,33 +36,41 @@ class SearchView: UIViewController, UISearchResultsUpdating, UISearchBarDelegate
         return collectionView
     }()
 
+    private let suggestions = ["Pop", "Hip-Hop", "Rock", "Jazz", "Electronic", "R&B", "Indie", "Classical"]
+    private var searchTask: Task<Void, Never>?
+
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        performSearch()
+    }
+
+    private func performSearch() {
         guard let resultsController = searchController.searchResultsController as? SearchResultViewController,
-              let query = searchBar.text,
-              !query.trimmingCharacters(in: .whitespaces).isEmpty else {
+              let query = searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !query.isEmpty else {
             return
         }
         resultsController.delegate = self
-
-        Task {
+        searchTask?.cancel()
+        searchTask = Task {
             do {
                 let results = try await SpotifyRepository.shared.search(with: query)
-                print("Search results: \(results)") // Отладочный вывод
+                guard !Task.isCancelled else { return }
                 resultsController.update(with: results)
             } catch {
-                print("Error during search: \(error)") // Лог ошибки
+                guard !Task.isCancelled else { return }
+                resultsController.showError(error)
             }
         }
     }
 
-
-    private var categories = [Category]()
-
     override func viewDidLoad() {
+        super.viewDidLoad()
 
         searchController.searchResultsUpdater = self
         searchController.searchBar.delegate = self
+        definesPresentationContext = true
         navigationItem.searchController = searchController
+        view.backgroundColor = .systemBackground
 
         view.addSubview(collectionView)
 
@@ -80,16 +86,6 @@ class SearchView: UIViewController, UISearchResultsUpdating, UISearchBarDelegate
             collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
 
-        Task {
-            do {
-                self.categories = try await SpotifyRepository.shared.getCategories()
-                print("Categories count: \(categories.count)") // Отладка
-                self.collectionView.reloadData()
-            } catch {
-                print("Error loading categories: \(error)") // Лог ошибки
-            }
-        }
-
     }
 }
 
@@ -100,7 +96,7 @@ extension SearchView: UICollectionViewDelegate, UICollectionViewDataSource {
     }
 
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        return categories.count
+        return suggestions.count
     }
     func collectionView(_ collectionView: UICollectionView,
                         cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
@@ -109,28 +105,37 @@ extension SearchView: UICollectionViewDelegate, UICollectionViewDataSource {
             for: indexPath) as? CategoriesCollectionViewCell else {
             return UICollectionViewCell()
         }
-        let category = categories[indexPath.row]
-
-        cell.configure(with: CategoriesCellViewModel(title: category.name, imageUrl: URL(string: category.icons.first?.url ?? "")))
+        cell.configure(with: CategoriesCellViewModel(title: suggestions[indexPath.row], imageUrl: nil))
         return cell
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         collectionView.deselectItem(at: indexPath, animated: true)
-        let categoryView = CategoryView(category: categories[indexPath.row])
-        categoryView.navigationItem.largeTitleDisplayMode = .never
-        navigationController?.pushViewController(categoryView, animated: true)
+        searchController.isActive = true
+        searchController.searchBar.text = suggestions[indexPath.row]
+        performSearch()
     }
 
 
     func updateSearchResults(for searchController: UISearchController) {
-
+        searchTask?.cancel()
+        guard let query = searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !query.isEmpty else {
+            (searchController.searchResultsController as? SearchResultViewController)?.clear()
+            return
+        }
+        searchTask = Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            performSearch()
+        }
     }
 }
 
 extension SearchView: SearchResultViewControllerDelegate {
 
     func didTapResult(_ result: SearchResults) {
+        searchController.isActive = false
         switch result {
         case .artist(let model):
             let artistView = ArtistView(artist: model)

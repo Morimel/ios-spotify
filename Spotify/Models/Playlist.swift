@@ -25,14 +25,19 @@ struct Playlist: Codable {
     }
 }
 
-struct PlaylistDetails: Codable {
-    let description: String
-    let externalUrls: [String: String]
+struct PlaylistDetails: Decodable {
+    let description: String?
+    let externalUrls: [String: String]?
     let id: String
-    let images: [APIImage]
+    let images: [APIImage]?
     let name: String
-    let owner: User
-    let tracks: PlaylistTracks
+    let owner: User?
+    let tracks: PlaylistTracks?
+    let items: PlaylistTracks?
+
+    var audioTracks: [AudioTrack] {
+        (items ?? tracks)?.items.compactMap(\.audioTrack) ?? []
+    }
 
     enum CodingKeys: String, CodingKey {
         case description
@@ -42,6 +47,7 @@ struct PlaylistDetails: Codable {
         case name
         case owner
         case tracks
+        case items
     }
 }
 
@@ -55,11 +61,22 @@ struct PlayListResponse: Codable {
     let items: [Playlist]
 }
 
-struct PlaylistTracks: Codable {
+struct PlaylistTracks: Decodable {
     let items: [PlaylistItems]
 }
 
-struct PlaylistItems: Codable {
-    let track: AudioTrack
+struct PlaylistItems: Decodable {
+    let audioTrack: AudioTrack?
+
+    enum CodingKeys: String, CodingKey {
+        case track
+        case item
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        audioTrack = (try? container.decode(AudioTrack.self, forKey: .item))
+            ?? (try? container.decode(AudioTrack.self, forKey: .track))
+    }
 }
 
