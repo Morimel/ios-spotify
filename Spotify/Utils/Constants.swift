@@ -10,9 +10,8 @@ import Foundation
 class Constants {
 
     static let baseAPIURL =  "https://api.spotify.com/v1"
-
-    static let clientID = "78520fd9eae74744ad272fc2a199d473"
-    static let clientSecret = "38a9bdca63c847fea62046d4fd312584"
+    static let clientID = "CLIENT_ID"
+    static let clientSecret = "CLIENT_SECRET"
     static let tokenAPIURL = "https://accounts.spotify.com/api/token"
 
     static let scopes = "user-read-private%20playlist-modify-public%20playlist-read-private%20playlist-modify-private%20user-follow-read%20user-library-read%20user-library-modify%20user-read-email%20user-top-read%20user-read-recently-played"
